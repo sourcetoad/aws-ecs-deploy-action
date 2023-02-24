@@ -1,0 +1,49 @@
+name: 'Sourcetoad - AWS ECS Deploy Action'
+description: 'Edit Task Definitions in ECS with jq and deploy.'
+author: Sourcetoad
+branding:
+  color: 'yellow'
+  icon: 'server'
+
+inputs:
+  ecs_cluster_name:
+    description: 'ECS Cluster Name'
+    required: true
+  aws_region:
+    description: 'AWS Region'
+    required: false
+    default: 'us-east-1'
+  ecs_launch_type:
+    description: 'ECS Launch Type (One of `ECS`, `FARGATE` or `EXTERNAL`).'
+    required: false
+    default: 'FARGATE'
+  ecs_service_name:
+    description: 'ECS Service Name'
+    required: true
+  service_task_definition_name:
+    description: 'ECS Task Definition Name'
+    required: true
+  service_container_image_changes:
+    description: 'Container images to change in format of (containername:image) using folded block scalar.'
+    required: true
+  prepare_task_definition_name:
+    description: 'ECS Task Definition Name (Runs prior to execution)'
+    required: false
+  prepare_task_container_image_changes:
+    description: 'Prepare step container images to change in format of (containername:image) using folded block scalar.'
+    required: false
+  prepare_task_container_network_config_filepath:
+    description: 'Location to JSON file representing the network configuration for the optional prepare job. This is required when `awsvpc` is in use.'
+    required: false
+  max_polling_iterations:
+    description: 'Max amount of iterations (15s increments) to wait for a service update'
+    required: false
+    default: '60'
+  dry_run:
+    description: 'Whether to skip all AWS related write steps.'
+    required: false
+    default: 'false'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  entrypoint: '/deploy.sh'
