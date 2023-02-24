@@ -46,6 +46,9 @@ _includes examples from other packages to give context_
   with:
     ecs_service_name: project
     service_task_definition_name: project-alpha
+    prepare_task_definition_name: project-alpha-migrations
+    prepare_task_container_network_config_filepath: ".github/networks/alpha.json"
+    prepare_task_container_image_changes: php|123456789100.dkr.ecr.us-east-1.amazonaws.com/php:version
     container_image_changes: >
         nginx|123456789100.dkr.ecr.us-east-1.amazonaws.com/nginx:version
         php|123456789100.dkr.ecr.us-east-1.amazonaws.com/php:version
@@ -64,9 +67,9 @@ Following inputs can be used as `step.with` keys
 | `ecs_service_name`                               | yes      | string | ECS Service Name                                                   |
 | `ecs_launch_type`                                | no       | string | ECS Launch Type for tasks. (default: `FARGATE`)                    |
 | `service_task_definition_name`                   | yes      | string | ECS Task Definition Name                                           |
-| `service_container_image_changes`                | yes      | string | space delimited keypairs (`container&#124;image`)                  |
+| `service_container_image_changes`                | yes      | string | space delimited keypairs (`container(pipe)image`)                  |
 | `prepare_task_definition_name`                   | no       | string | ECS Task Definition Name (Runs prior to execution)                 |
-| `prepare_task_container_image_changes`           | no       | string | space delimited keypairs for prepare step (`container&#124;image`) |
+| `prepare_task_container_image_changes`           | no       | string | space delimited keypairs for prepare step (`container(pipe)image`) |
  | `prepare_task_container_network_config_filepath` | no       | string | filepath from context of root to json configuration                |
 | `max_polling_iterations`                         | no       | Number | Number of 15s iterations to poll max (default: `60`)               |
 | `dry_run`                                        | no       | bool   | Whether to skip write related AWS commands.                        |
@@ -109,3 +112,91 @@ Given this example:
    * Adapting the `image` property to `123456789100.dkr.ecr.us-east-1.amazonaws.com/nginx:version`
  * Finding the next container that has name `php`
    * Adapting the `image` property to `123456789100.dkr.ecr.us-east-1.amazonaws.com/php:version`
+
+## IAM Policies
+_An example hardened policy for the Role to assume with explanations._
+
+```json5
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        // Allows Actions to Register/View Task Definitions.
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecs:DescribeTaskDefinition",
+                "ecs:RegisterTaskDefinition"
+            ],
+            // Not possible to harden to a specific resource
+            "Resource": "*"
+        },
+        // [Optional] Allows Action to schedule one-off tasks via "prepare"
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecs:RunTask"
+            ],
+            "Condition": {
+                "ArnEquals": {
+                    "ecs:cluster": "arn:aws:ecs:{region}:{accountId}:cluster/{clusterName}"
+                }
+            },
+            // Hardening must occur via `ArnEquals` condition above.
+            "Resource": "*"
+        },
+        // [Optional] Allows Action to monitor the one-off task.
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecs:DescribeTasks"
+            ],
+            "Resource": "arn:aws:ecs:{region}:{accountId}:task/{clusterName}/*"
+        },
+        // Allows Action to trigger a service update with new task definition
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecs:UpdateService",
+                "ecs:DescribeServices"
+            ],
+            "Resource": "arn:aws:ecs:{region}:{accountId}:service/{clusterName}/*"
+        },
+        // Allows Action to create new Task Definitions with the roles included in the Task Definition
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:PassRole"
+            ],
+            // In order to create a Task Definition w/ Roles. You must have permission to Pass those roles.
+            "Resource": [
+                "arn:aws:iam::{accountId}:role/{roleName}",
+                "arn:aws:iam::{accountId}:role/{roleName}"
+            ]
+        },
+      // Allows Action to upload/verify ECR images via Docker Buildx
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ecr:CompleteLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:InitiateLayerUpload",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:PutImage",
+          "ecr:BatchGetImage"
+        ],
+        "Resource": [
+          "arn:aws:ecr:{region}:{accountId}:repository/{repositoryName}",
+          "arn:aws:ecr:{region}:{accountId}:repository/{repositoryName}",
+          "arn:aws:ecr:{region}:{accountId}:repository/{repositoryName}"
+        ]
+      },
+      // Allows Action to authenticate via scoped permission set above against ECR Registry
+      {
+        "Effect": "Allow",
+        "Action": "ecr:GetAuthorizationToken",
+        // Not possible to harden gaining an ECR Auth token
+        "Resource": "*"
+      }
+    ]
+}
+```
