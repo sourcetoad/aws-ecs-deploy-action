@@ -67,9 +67,9 @@ Following inputs can be used as `step.with` keys
 | `ecs_service_name`                               | yes      | string | ECS Service Name                                                   |
 | `ecs_launch_type`                                | no       | string | ECS Launch Type for tasks. (default: `FARGATE`)                    |
 | `service_task_definition_name`                   | yes      | string | ECS Task Definition Name                                           |
-| `service_container_image_changes`                | yes      | string | space delimited keypairs (`container&#124;image`)                  |
+| `service_container_image_changes`                | yes      | string | space delimited keypairs (`container(pipe)image`)                  |
 | `prepare_task_definition_name`                   | no       | string | ECS Task Definition Name (Runs prior to execution)                 |
-| `prepare_task_container_image_changes`           | no       | string | space delimited keypairs for prepare step (`container&#124;image`) |
+| `prepare_task_container_image_changes`           | no       | string | space delimited keypairs for prepare step (`container(pipe)image`) |
  | `prepare_task_container_network_config_filepath` | no       | string | filepath from context of root to json configuration                |
 | `max_polling_iterations`                         | no       | Number | Number of 15s iterations to poll max (default: `60`)               |
 | `dry_run`                                        | no       | bool   | Whether to skip write related AWS commands.                        |
