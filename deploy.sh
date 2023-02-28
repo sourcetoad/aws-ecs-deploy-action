@@ -125,7 +125,7 @@ function modifyTaskDefinitionFile() {
     getTaskDefinition "$PARAM_TASK_DEFINITION" > "$ORIGINAL_TASK_DEFINITION_FILE"
     cp "$ORIGINAL_TASK_DEFINITION_FILE" "$TASK_DEFINITION_FILE"
 
-    # 3) Iterate each line item for change and inline adapt Task Definition
+    # Iterate each line item for change and inline adapt Task Definition
     for LINE in ${PARAM_IMAGE_CHANGES}; do
         CONTAINER=$(echo "$LINE" | cut -d'|' -f1)
         IMAGE=${LINE#*|}
@@ -155,12 +155,12 @@ function modifyTaskDefinitionFile() {
         exit 1;
     fi
 
-    # 4) Review changes (if debugging)
+    # Review changes (if debugging)
     if [ "$ACTIONS_RUNNER_DEBUG" = true ]; then
         diff <(jq --sort-keys . "$ORIGINAL_TASK_DEFINITION_FILE") <(jq --sort-keys . "$TASK_DEFINITION_FILE") || true
     fi
 
-    # 5) Remove keys that are rejected via registering.
+    # Remove keys that are rejected via registering.
     # shellcheck disable=SC2002
     cat "$TASK_DEFINITION_FILE" | jq 'del(.compatibilities,.taskDefinitionArn,.requiresAttributes,.revision,.status,.registeredAt,.deregisteredAt,.registeredBy)' > tmpfile && mv tmpfile "$TASK_DEFINITION_FILE"
 }
