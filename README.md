@@ -1,5 +1,5 @@
 # AWS ECS Deploy Action
-_To automatically edit task definitions via jq to then deploy & monitor._
+_To automatically edit task definitions via jq to then deploy & monitor. [Looking for CodeDeploy?](https://github.com/sourcetoad/aws-codedeploy-action)_
 
 ![](.github/ecs-deploy-action.png)
 
