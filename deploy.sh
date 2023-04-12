@@ -138,6 +138,7 @@ function modifyTaskDefinitionFile() {
             exit 1;
         fi
 
+        # Intentional skip when NO_IMAGE received to keep above error checking for empty image string
         if [[ "$IMAGE" != "NO_IMAGE" ]]; then
             touch tmpfile;
 
