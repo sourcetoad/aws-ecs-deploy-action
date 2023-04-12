@@ -44,12 +44,13 @@ _includes examples from other packages to give context_
 - name: ECS Deploy
   uses: sourcetoad/aws-ecs-deploy-action@v1
   with:
+    ecs_cluster_name: cluster
     ecs_service_name: project
     service_task_definition_name: project-alpha
     prepare_task_definition_name: project-alpha-migrations
     prepare_task_container_network_config_filepath: ".github/networks/alpha.json"
     prepare_task_container_image_changes: php|123456789100.dkr.ecr.us-east-1.amazonaws.com/php:version
-    container_image_changes: >
+    service_container_image_changes: >
         nginx|123456789100.dkr.ecr.us-east-1.amazonaws.com/nginx:version
         php|123456789100.dkr.ecr.us-east-1.amazonaws.com/php:version
 ```
