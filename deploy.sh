@@ -138,10 +138,13 @@ function modifyTaskDefinitionFile() {
             exit 1;
         fi
 
-        touch tmpfile;
+        # Intentional skip when NO_IMAGE received to keep above error checking for empty image string
+        if [[ "$IMAGE" != "NO_IMAGE" ]]; then
+            touch tmpfile;
 
-        # shellcheck disable=SC2002
-        cat "$TASK_DEFINITION_FILE" | jq --arg image "$IMAGE" --arg container "$CONTAINER" '(.containerDefinitions[]? | select(.name==$container)) |= (.image=$image)' > tmpfile && mv tmpfile "$TASK_DEFINITION_FILE"
+            # shellcheck disable=SC2002
+            cat "$TASK_DEFINITION_FILE" | jq --arg image "$IMAGE" --arg container "$CONTAINER" '(.containerDefinitions[]? | select(.name==$container)) |= (.image=$image)' > tmpfile && mv tmpfile "$TASK_DEFINITION_FILE"
+        fi
     done
 
     if jq < "$TASK_DEFINITION_FILE" &> /dev/null; then
