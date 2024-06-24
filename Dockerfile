@@ -1,4 +1,4 @@
-FROM amazon/aws-cli:2.15.21
+FROM amazon/aws-cli:2.17.0
 
 COPY deploy.sh /deploy.sh
 
