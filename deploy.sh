@@ -71,7 +71,7 @@ function pollForSpecificServiceUpdate() {
             DEPLOYMENT=$(echo "$RESPONSE" | jq -r --arg deploymentId "$1" '.services[]?.deployments[] | select(.id==$deploymentId)')
 
             if [ -z "$DEPLOYMENT" ]; then
-                echo -e "${ORANGE}Deployment with ID $1 could not be found. Likely replaced by a manual or external deployment.";
+                echo -e "${ORANGE}Deployment with ID $1 was cancelled, missing or replaced by another.";
                 echo -e "${ORANGE}Exiting polling loop. Please verify deployment status in the AWS Console."
                 exit 0;
             fi
