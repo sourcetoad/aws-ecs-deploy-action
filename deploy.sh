@@ -245,6 +245,8 @@ if [ -n "$INPUT_PREPARE_TASK_CONTAINER_IMAGE_CHANGES" ] && [ -n "$INPUT_PREPARE_
 
     TASK_RESPONSE=$(describeTask "$TASK_ARN")
     if echo "$TASK_RESPONSE" | jq -e '.tasks[0].containers[] | select((.exitCode // 255) != 0)' > /dev/null; then
+        EXIT_CODE=$(echo "$TASK_RESPONSE" | jq -r '.tasks[0].containers[] | select((.exitCode // 255) != 0) | .exitCode // 255')
+
         echo -e "${RED}Task returned non-zero exit code: ${RESET_TEXT}$EXIT_CODE. Raw response is below:";
         echo -e "${TASK_RESPONSE}"
         exit 1;
