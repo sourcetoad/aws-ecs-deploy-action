@@ -157,7 +157,7 @@ function modifyTaskDefinitionFile() {
     if jq < "$TASK_DEFINITION_FILE" &> /dev/null; then
         echo -e "${RED}Task Definition became invalid JSON after modifications (invalid_task_definition)."
 
-        if [ "$ACTIONS_RUNNER_DEBUG" = true ]; then
+        if [ -n "$ACTIONS_RUNNER_DEBUG" ]; then
             echo "::debug::Debug enabled. Outputting modified Task Definition file.";
             cat "$TASK_DEFINITION_FILE"
         fi
@@ -166,7 +166,7 @@ function modifyTaskDefinitionFile() {
     fi
 
     # Review changes (if debugging)
-    if [ "$ACTIONS_RUNNER_DEBUG" = true ]; then
+    if [ -n "$ACTIONS_RUNNER_DEBUG" ]; then
         diff <(jq --sort-keys . "$ORIGINAL_TASK_DEFINITION_FILE") <(jq --sort-keys . "$TASK_DEFINITION_FILE") || true
     fi
 
