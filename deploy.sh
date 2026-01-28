@@ -157,7 +157,7 @@ function modifyTaskDefinitionFile() {
     if jq < "$TASK_DEFINITION_FILE" &> /dev/null; then
         echo -e "${RED}Task Definition became invalid JSON after modifications (invalid_task_definition)."
 
-        if [ -n "$ACTIONS_RUNNER_DEBUG" ]; then
+        if [ -n "$RUNNER_DEBUG" ]; then
             echo "::debug::Debug enabled. Outputting modified Task Definition file.";
             cat "$TASK_DEFINITION_FILE"
         fi
@@ -166,7 +166,7 @@ function modifyTaskDefinitionFile() {
     fi
 
     # Review changes (if debugging)
-    if [ -n "$ACTIONS_RUNNER_DEBUG" ]; then
+    if [ -n "$RUNNER_DEBUG" ]; then
         diff <(jq --sort-keys . "$ORIGINAL_TASK_DEFINITION_FILE") <(jq --sort-keys . "$TASK_DEFINITION_FILE") || true
     fi
 
@@ -203,7 +203,7 @@ if [ -n "$INPUT_PREPARE_TASK_CONTAINER_IMAGE_CHANGES" ] && [ -n "$INPUT_PREPARE_
     modifyTaskDefinitionFile "$INPUT_PREPARE_TASK_DEFINITION_NAME" "$INPUT_PREPARE_TASK_CONTAINER_IMAGE_CHANGES"
 
     if [ -n "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" ]; then
-        if jq < "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" &> /dev/null; then
+        if ! jq < "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" &> /dev/null; then
             echo -e "${RED}Network configuration is invalid JSON. (invalid_network_config_file)."
             exit 1;
         fi
