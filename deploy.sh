@@ -154,7 +154,7 @@ function modifyTaskDefinitionFile() {
         fi
     done
 
-    if jq < "$TASK_DEFINITION_FILE" &> /dev/null; then
+    if ! jq -e . < "$TASK_DEFINITION_FILE" >/dev/null 2>&1; then
         echo -e "${RED}Task Definition became invalid JSON after modifications (invalid_task_definition)."
 
         if [ -n "$RUNNER_DEBUG" ]; then
@@ -203,7 +203,7 @@ if [ -n "$INPUT_PREPARE_TASK_CONTAINER_IMAGE_CHANGES" ] && [ -n "$INPUT_PREPARE_
     modifyTaskDefinitionFile "$INPUT_PREPARE_TASK_DEFINITION_NAME" "$INPUT_PREPARE_TASK_CONTAINER_IMAGE_CHANGES"
 
     if [ -n "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" ]; then
-        if jq < "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" &> /dev/null; then
+        if ! jq -e . < "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" >/dev/null 2>&1; then
             echo -e "${RED}Network configuration is invalid JSON. (invalid_network_config_file)."
             exit 1;
         fi
