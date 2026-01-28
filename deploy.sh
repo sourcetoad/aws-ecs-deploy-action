@@ -203,7 +203,7 @@ if [ -n "$INPUT_PREPARE_TASK_CONTAINER_IMAGE_CHANGES" ] && [ -n "$INPUT_PREPARE_
     modifyTaskDefinitionFile "$INPUT_PREPARE_TASK_DEFINITION_NAME" "$INPUT_PREPARE_TASK_CONTAINER_IMAGE_CHANGES"
 
     if [ -n "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" ]; then
-        if ! jq < "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" &> /dev/null; then
+        if jq < "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" &> /dev/null; then
             echo -e "${RED}Network configuration is invalid JSON. (invalid_network_config_file)."
             exit 1;
         fi
