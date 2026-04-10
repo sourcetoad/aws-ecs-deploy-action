@@ -1,0 +1,28 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    tags-ignore:
+      - '**'
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: build
+        uses: docker/build-push-action@v7
+        with:
+          load: true
+          tags: aws-ecs-deploy-action:latest
+
+      - name: Test installed tools
+        run: |
+          set -e
+          docker run --rm --entrypoint jq aws-ecs-deploy-action:latest --version
+          docker run --rm --entrypoint diff aws-ecs-deploy-action:latest --version
