@@ -178,7 +178,7 @@ function modifyTaskDefinitionFile() {
 # Validation of AWS Creds
 echo -e "ECS Deploy Action for AWS on GitHub Actions.";
 AWS_USERID=$(aws sts get-caller-identity | jq -r '.UserId')
-if [ -z "$AWS_USERID" ] && [ -z "$INPUT_DRY_RUN" ]; then
+if [ -z "$AWS_USERID" ] && [ "$INPUT_DRY_RUN" != "true" ]; then
     echo "::error::Access could not be reached to AWS. Double check aws-actions/configure-aws-credentials is properly configured."
     exit 1;
 fi
@@ -212,7 +212,7 @@ if [ -n "$INPUT_PREPARE_TASK_CONTAINER_IMAGE_CHANGES" ] && [ -n "$INPUT_PREPARE_
     # shellcheck disable=SC2002
     JSON_NETWORK_CONFIG=$(cat "$INPUT_PREPARE_TASK_CONTAINER_NETWORK_CONFIG_FILEPATH" | jq -r tostring)
 
-    if "$INPUT_DRY_RUN"; then
+    if [ "$INPUT_DRY_RUN" = "true" ]; then
         echo "::debug::Dry Run detected. Exiting."
         exit 0;
     fi
@@ -258,7 +258,7 @@ fi
 # Prepare Main Task Definition for editing
 modifyTaskDefinitionFile "$INPUT_SERVICE_TASK_DEFINITION_NAME" "$INPUT_SERVICE_CONTAINER_IMAGE_CHANGES"
 
-if "$INPUT_DRY_RUN"; then
+if [ "$INPUT_DRY_RUN" = "true" ]; then
     echo "::debug::Dry Run detected. Exiting."
     exit 0;
 fi
