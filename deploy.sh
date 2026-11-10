@@ -62,9 +62,82 @@ function describeServiceScopedToEvents() {
         --output json
 }
 
+function listServiceRunningTasks() {
+    aws ecs list-tasks \
+        --cluster "$INPUT_ECS_CLUSTER_NAME" \
+        --service-name "$INPUT_ECS_SERVICE_NAME" \
+        --desired-status RUNNING \
+        --query taskArns \
+        --output json
+}
+
+function describeTasks() {
+    aws ecs describe-tasks \
+        --cluster "$INPUT_ECS_CLUSTER_NAME" \
+        --tasks "$@"
+}
+
+function getTaskProtection() {
+    aws ecs get-task-protection \
+        --cluster "$INPUT_ECS_CLUSTER_NAME" \
+        --tasks "$@"
+}
+
+# Returns 0 (and prints a summary) when every task still running from a previous deployment
+# has scale-in protection enabled. ECS will not stop those tasks until their protection is
+# removed or expires, so the rollout cannot reach COMPLETED until then.
+function onlyProtectedTasksRemain() {
+    PARAM_DEPLOYMENT_ID="$1"
+
+    TASK_ARNS=$(listServiceRunningTasks) || return 1
+    ALL_TASKS=()
+    while IFS= read -r TASK; do ALL_TASKS+=("$TASK"); done < <(echo "$TASK_ARNS" | jq -r '.[]')
+
+    if [ "${#ALL_TASKS[@]}" -eq 0 ]; then
+        return 1
+    fi
+
+    # Find tasks not started by our deployment (describe-tasks accepts at most 100 per call).
+    OLD_TASKS=()
+    for ((i = 0; i < ${#ALL_TASKS[@]}; i += 100)); do
+        DESCRIBE_RESPONSE=$(describeTasks "${ALL_TASKS[@]:i:100}") || return 1
+        while IFS= read -r TASK; do OLD_TASKS+=("$TASK"); done < <(echo "$DESCRIBE_RESPONSE" | jq -r --arg deploymentId "$PARAM_DEPLOYMENT_ID" '.tasks[] | select(.startedBy != $deploymentId) | .taskArn')
+    done
+
+    # No old tasks left with desired status RUNNING; normal draining, keep polling.
+    if [ "${#OLD_TASKS[@]}" -eq 0 ]; then
+        return 1
+    fi
+
+    # Check protection (get-task-protection accepts at most 10 per call).
+    PROTECTED_TASKS="[]"
+    for ((i = 0; i < ${#OLD_TASKS[@]}; i += 10)); do
+        PROTECTION_RESPONSE=$(getTaskProtection "${OLD_TASKS[@]:i:10}" 2>&1) || {
+            if [ -z "$PROTECTION_CHECK_WARNED" ]; then
+                echo "::warning::Unable to check task protection (is ecs:GetTaskProtection allowed?). Continuing to poll normally."
+                echo "$PROTECTION_RESPONSE"
+                PROTECTION_CHECK_WARNED=1
+            fi
+            return 1
+        }
+        PROTECTED_TASKS=$(jq -c --argjson acc "$PROTECTED_TASKS" '$acc + [.protectedTasks[]? | select(.protectionEnabled == true)]' <<< "$PROTECTION_RESPONSE")
+    done
+
+    PROTECTED_COUNT=$(echo "$PROTECTED_TASKS" | jq 'length')
+    if [ "$PROTECTED_COUNT" -lt "${#OLD_TASKS[@]}" ]; then
+        return 1
+    fi
+
+    echo -e "${BLUE}New deployment is fully running. Remaining tasks from previous deployment(s) are scale-in protected:"
+    echo "$PROTECTED_TASKS" | jq -r '.[] | "  \(.taskArn) (protected until \(.expirationDate // "unknown"))"'
+    echo "::notice::Deployment healthy, but ${PROTECTED_COUNT} protected task(s) from a previous deployment are still running. ECS will stop them once protection is removed or expires."
+    return 0
+}
+
 function pollForSpecificServiceUpdate() {
     LAST_EVENT_DATE="$2"
     deadlockCounter=0;
+    PREVIOUS_FAILED_COUNT=0;
 
         while true; do
             RESPONSE=$(describeService)
@@ -95,8 +168,15 @@ function pollForSpecificServiceUpdate() {
 
             echo "$EVENTS_RESPONSE" | jq -r '.[][].message'
 
-            if [ "$FAILED_COUNT" -gt 0 ]; then
-                echo -e "${RED}Failed task detected (Failed count over zero)."
+            # failedTasks is cumulative for the deployment. A transient failure that ECS replaces
+            # is not a failed deployment, so we only warn and let rolloutState decide.
+            if [ "$FAILED_COUNT" -gt "$PREVIOUS_FAILED_COUNT" ]; then
+                echo "::warning::$((FAILED_COUNT - PREVIOUS_FAILED_COUNT)) task(s) failed during deployment (total: $FAILED_COUNT). ECS will retry; continuing to monitor."
+                PREVIOUS_FAILED_COUNT="$FAILED_COUNT"
+            fi
+
+            if [ -n "$INPUT_MAX_FAILED_TASKS" ] && [ "$INPUT_MAX_FAILED_TASKS" -gt 0 ] && [ "$FAILED_COUNT" -ge "$INPUT_MAX_FAILED_TASKS" ]; then
+                echo -e "${RED}Failed task count ($FAILED_COUNT) reached limit (max_failed_tasks: $INPUT_MAX_FAILED_TASKS)."
                 exit 1;
             fi
 
@@ -111,6 +191,14 @@ function pollForSpecificServiceUpdate() {
             fi
 
             if [ "$STATUS" = "COMPLETED" ]; then
+                break;
+            fi
+
+            if [ "$INPUT_WAIT_FOR_PROTECTED_TASKS" = "false" ] \
+                && [ "$STATUS" = "IN_PROGRESS" ] \
+                && [ "$PENDING_COUNT" -eq 0 ] \
+                && [ "$RUNNING_COUNT" -ge "$DESIRED_COUNT" ] \
+                && onlyProtectedTasksRemain "$1"; then
                 break;
             fi
 

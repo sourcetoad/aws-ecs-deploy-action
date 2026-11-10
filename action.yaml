@@ -39,6 +39,14 @@ inputs:
     description: 'Max amount of iterations (15s increments) to wait for a service update'
     required: false
     default: '60'
+  max_failed_tasks:
+    description: 'Fail the action once this many tasks have failed in the deployment. Empty or 0 relies on the ECS deployment circuit breaker (rolloutState FAILED) and max_polling_iterations.'
+    required: false
+    default: ''
+  wait_for_protected_tasks:
+    description: 'Keep polling until scale-in protected tasks from previous deployments stop. When false, the action succeeds once the new deployment is fully running and only protected old tasks remain (requires ecs:ListTasks, ecs:DescribeTasks and ecs:GetTaskProtection).'
+    required: false
+    default: 'true'
   dry_run:
     description: 'Whether to skip all AWS related write steps.'
     required: false
