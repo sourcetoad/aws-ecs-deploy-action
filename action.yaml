@@ -40,7 +40,7 @@ inputs:
     required: false
     default: '60'
   max_failed_tasks:
-    description: 'Fail the action once this many tasks have failed in the deployment. Empty or 0 relies on the ECS deployment circuit breaker (rolloutState FAILED) and max_polling_iterations.'
+    description: 'Fail the action once this many tasks fail in a row before any task in the deployment runs successfully (ECS failedTasks). It does not count failures after the first healthy task. Empty or 0 relies on the ECS deployment circuit breaker (rolloutState FAILED) and max_polling_iterations.'
     required: false
     default: ''
   wait_for_protected_tasks:

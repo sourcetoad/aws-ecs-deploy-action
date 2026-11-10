@@ -168,15 +168,16 @@ function pollForSpecificServiceUpdate() {
 
             echo "$EVENTS_RESPONSE" | jq -r '.[][].message'
 
-            # failedTasks is cumulative for the deployment. A transient failure that ECS replaces
-            # is not a failed deployment, so we only warn and let rolloutState decide.
+            # failedTasks counts consecutive failures. ECS resets it to zero (and stops evaluating it)
+            # once the deployment has a successfully running task. A transient failure that ECS
+            # replaces is not a failed deployment, so we only warn and let rolloutState decide.
             if [ "$FAILED_COUNT" -gt "$PREVIOUS_FAILED_COUNT" ]; then
-                echo "::warning::$((FAILED_COUNT - PREVIOUS_FAILED_COUNT)) task(s) failed during deployment (total: $FAILED_COUNT). ECS will retry; continuing to monitor."
-                PREVIOUS_FAILED_COUNT="$FAILED_COUNT"
+                echo "::warning::$((FAILED_COUNT - PREVIOUS_FAILED_COUNT)) task(s) failed during deployment ($FAILED_COUNT consecutive). ECS will retry; continuing to monitor."
             fi
+            PREVIOUS_FAILED_COUNT="$FAILED_COUNT"
 
             if [ -n "$INPUT_MAX_FAILED_TASKS" ] && [ "$INPUT_MAX_FAILED_TASKS" -gt 0 ] && [ "$FAILED_COUNT" -ge "$INPUT_MAX_FAILED_TASKS" ]; then
-                echo -e "${RED}Failed task count ($FAILED_COUNT) reached limit (max_failed_tasks: $INPUT_MAX_FAILED_TASKS)."
+                echo -e "${RED}Consecutive failed task count ($FAILED_COUNT) reached limit (max_failed_tasks: $INPUT_MAX_FAILED_TASKS)."
                 exit 1;
             fi
 

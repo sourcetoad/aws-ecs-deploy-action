@@ -73,7 +73,7 @@ Following inputs can be used as `step.with` keys
 | `prepare_task_container_image_changes`           | no       | string | space delimited keypairs for prepare step (`container(pipe)image`) |
  | `prepare_task_container_network_config_filepath` | no       | string | filepath from context of root to json configuration                |
 | `max_polling_iterations`                         | no       | Number | Number of 15s iterations to poll max (default: `60`)               |
-| `max_failed_tasks`                               | no       | Number | Fail once this many tasks fail in the deployment (default: off)    |
+| `max_failed_tasks`                               | no       | Number | Fail after this many consecutive task failures (default: off)      |
 | `wait_for_protected_tasks`                       | no       | bool   | Wait for protected old tasks to stop (default: `true`)             |
 | `dry_run`                                        | no       | bool   | Whether to skip write related AWS commands.                        |
 
@@ -82,12 +82,16 @@ Some projects may not want to poll till completion. Setting `max_polling_iterati
 after the service update was triggered. Progress will have to be monitored elsewhere.
 
 ## Failed tasks during a deployment
-ECS counts every task that fails to start or pass health checks during a deployment, and replaces it. A transient
-failure that ECS recovers from is not a failed deployment, so failed tasks are reported as warnings and polling continues.
+ECS replaces tasks that fail to start or pass health checks during a deployment, and reports the number of consecutive
+failures as `failedTasks`. Once any task in the deployment runs successfully, ECS resets that count to zero and stops
+evaluating it. A transient failure that ECS recovers from is not a failed deployment, so failed tasks are reported as
+warnings and polling continues.
 
 The action fails when:
  * The rollout state becomes `FAILED` (enable the [deployment circuit breaker](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deployment-circuit-breaker.html) for this).
- * The failed task count reaches `max_failed_tasks` (if set). Useful for services without the circuit breaker.
+ * The consecutive failed task count reaches `max_failed_tasks` (if set). This catches a deployment where no task ever
+   becomes healthy (bad image, crash on start) without waiting for `max_polling_iterations`, which is useful for services
+   without the circuit breaker. It does not count failures after the first task runs successfully.
  * `max_polling_iterations` is exceeded.
 
 ## Scale-in protected tasks
