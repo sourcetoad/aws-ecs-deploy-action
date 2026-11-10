@@ -74,10 +74,24 @@ Following inputs can be used as `step.with` keys
  | `prepare_task_container_network_config_filepath` | no       | string | filepath from context of root to json configuration                |
 | `max_polling_iterations`                         | no       | Number | Number of 15s iterations to poll max (default: `60`)               |
 | `dry_run`                                        | no       | bool   | Whether to skip write related AWS commands.                        |
+| `complete_on_protected_tasks`                    | no       | bool   | Treat the rollout as complete once only protected tasks remain. (default: `false`) |
 
 ## Skip waiting during update
 Some projects may not want to poll till completion. Setting `max_polling_iterations` to `0` will exit the script cleanly
 after the service update was triggered. Progress will have to be monitored elsewhere.
+
+## Protected tasks
+ECS will not stop a task that has [scale-in protection](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-scale-in-protection.html),
+during a scale-in or a deployment. A service whose tasks protect themselves while doing long work can therefore sit
+`IN_PROGRESS` long after every task of the new revision is running, until the protected tasks finish and ECS replaces them.
+
+Once the new revision is fully running, the poll loop checks the tasks left from the previous revision. If every one of
+them is protected it says so in the log. With `complete_on_protected_tasks: true` it also exits successfully at that point,
+since nothing is left for the deployment to do except wait for that work to end. Without it, polling continues until the
+rollout completes or `max_polling_iterations` is reached, as before.
+
+The check needs `ecs:ListTasks`, `ecs:DescribeTasks` and `ecs:GetTaskProtection` on the deploy role. If they are missing
+the check finds nothing and polling behaves exactly as it did before.
 
 ## Prepare Task
 Some projects may require a task to complete prior to the rollout of the main system. This is commonly for migrations in Laravel projects.
@@ -161,6 +175,21 @@ _An example hardened policy for the Role to assume with explanations._
                 "ecs:DescribeServices"
             ],
             "Resource": "arn:aws:ecs:{region}:{accountId}:service/{clusterName}/*"
+        },
+        // [Optional] Allows Action to recognise protected tasks while polling (see "Protected tasks")
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ecs:ListTasks",
+                "ecs:DescribeTasks",
+                "ecs:GetTaskProtection"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "ArnEquals": {
+                    "ecs:cluster": "arn:aws:ecs:{region}:{accountId}:cluster/{clusterName}"
+                }
+            }
         },
         // Allows Action to create new Task Definitions with the roles included in the Task Definition
         {

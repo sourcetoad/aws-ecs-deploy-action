@@ -43,6 +43,10 @@ inputs:
     description: 'Whether to skip all AWS related write steps.'
     required: false
     default: 'false'
+  complete_on_protected_tasks:
+    description: 'Treat the deployment as complete once the new revision is fully running and every remaining task from the previous revision has ECS scale-in protection.'
+    required: false
+    default: 'false'
 runs:
   using: 'docker'
   image: 'Dockerfile'

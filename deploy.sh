@@ -62,6 +62,57 @@ function describeServiceScopedToEvents() {
         --output json
 }
 
+function listRunningServiceTasks() {
+    aws ecs list-tasks \
+        --cluster "$INPUT_ECS_CLUSTER_NAME" \
+        --service-name "$INPUT_ECS_SERVICE_NAME" \
+        --desired-status RUNNING \
+        --query taskArns \
+        --output json
+}
+
+# $1: JSON array of task ARNs. Prints JSON array of {arn, startedBy}.
+function describeTasksStartedBy() {
+    # shellcheck disable=SC2046
+    aws ecs describe-tasks \
+        --cluster "$INPUT_ECS_CLUSTER_NAME" \
+        --tasks $(echo "$1" | jq -r '.[]') \
+        --query 'tasks[].{arn:taskArn,startedBy:startedBy}' \
+        --output json
+}
+
+# $1: JSON array of task ARNs. Prints JSON array of the ARNs that currently have scale-in protection.
+function listProtectedTasks() {
+    # shellcheck disable=SC2046,SC2016
+    aws ecs get-task-protection \
+        --cluster "$INPUT_ECS_CLUSTER_NAME" \
+        --tasks $(echo "$1" | jq -r '.[]') \
+        --query 'protectedTasks[?protectionEnabled==`true`].taskArn' \
+        --output json
+}
+
+# $1: deployment id. Prints "<previous-revision tasks still running> <of which protected>".
+# Any lookup failure (for example a deploy role without ecs:GetTaskProtection) counts as nothing found,
+# so the normal polling behaviour is unchanged.
+function countPreviousRevisionTasks() {
+    TASK_ARNS=$(listRunningServiceTasks 2>/dev/null || echo '[]')
+
+    if [ "$(echo "$TASK_ARNS" | jq 'length')" -eq 0 ]; then
+        echo "0 0"; return;
+    fi
+
+    PREVIOUS_ARNS=$(describeTasksStartedBy "$TASK_ARNS" 2>/dev/null | jq -c --arg id "$1" '[.[] | select(.startedBy != $id) | .arn]' || echo '[]')
+    PREVIOUS_COUNT=$(echo "$PREVIOUS_ARNS" | jq 'length')
+
+    if [ "$PREVIOUS_COUNT" -eq 0 ]; then
+        echo "0 0"; return;
+    fi
+
+    PROTECTED_COUNT=$(listProtectedTasks "$PREVIOUS_ARNS" 2>/dev/null | jq 'length' || echo 0)
+
+    echo "$PREVIOUS_COUNT $PROTECTED_COUNT"
+}
+
 function pollForSpecificServiceUpdate() {
     LAST_EVENT_DATE="$2"
     deadlockCounter=0;
@@ -112,6 +163,21 @@ function pollForSpecificServiceUpdate() {
 
             if [ "$STATUS" = "COMPLETED" ]; then
                 break;
+            fi
+
+            # ECS will not stop a task that has scale-in protection, so a rollout whose new tasks are all
+            # running can sit IN_PROGRESS until the protected tasks finish their work.
+            if [ "$STATUS" = "IN_PROGRESS" ] && [ "$PENDING_COUNT" -eq 0 ] && [ "$RUNNING_COUNT" -ge "$DESIRED_COUNT" ]; then
+                read -r PREVIOUS_COUNT PROTECTED_COUNT <<< "$(countPreviousRevisionTasks "$1")"
+
+                if [ "$PREVIOUS_COUNT" -gt 0 ] && [ "$PREVIOUS_COUNT" -eq "$PROTECTED_COUNT" ]; then
+                    echo -e "${BLUE}New revision is fully running. ECS is waiting on ${RESET_TEXT}$PROTECTED_COUNT${BLUE} protected task(s) from the previous revision to finish their work.";
+
+                    if "$INPUT_COMPLETE_ON_PROTECTED_TASKS"; then
+                        echo -e "${GREEN}complete_on_protected_tasks is enabled. Treating the deployment as complete; ECS will finish the rollout on its own.";
+                        return 0;
+                    fi
+                fi
             fi
 
             if [ "$deadlockCounter" -gt "$INPUT_MAX_POLLING_ITERATIONS" ]; then
