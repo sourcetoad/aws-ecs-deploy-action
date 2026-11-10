@@ -95,20 +95,22 @@ function listProtectedTasks() {
 # Any lookup failure (for example a deploy role without ecs:GetTaskProtection) counts as nothing found,
 # so the normal polling behaviour is unchanged.
 function countPreviousRevisionTasks() {
-    TASK_ARNS=$(listRunningServiceTasks 2>/dev/null || echo '[]')
+    TASK_ARNS=$(listRunningServiceTasks 2>/dev/null) || TASK_ARNS='[]'
 
-    if [ "$(echo "$TASK_ARNS" | jq 'length')" -eq 0 ]; then
+    if [ "$(echo "${TASK_ARNS:-[]}" | jq 'length')" -eq 0 ]; then
         echo "0 0"; return;
     fi
 
-    PREVIOUS_ARNS=$(describeTasksStartedBy "$TASK_ARNS" 2>/dev/null | jq -c --arg id "$1" '[.[] | select(.startedBy != $id) | .arn]' || echo '[]')
+    DESCRIBED_TASKS=$(describeTasksStartedBy "$TASK_ARNS" 2>/dev/null) || DESCRIBED_TASKS='[]'
+    PREVIOUS_ARNS=$(echo "${DESCRIBED_TASKS:-[]}" | jq -c --arg id "$1" '[.[] | select(.startedBy != $id) | .arn]')
     PREVIOUS_COUNT=$(echo "$PREVIOUS_ARNS" | jq 'length')
 
     if [ "$PREVIOUS_COUNT" -eq 0 ]; then
         echo "0 0"; return;
     fi
 
-    PROTECTED_COUNT=$(listProtectedTasks "$PREVIOUS_ARNS" 2>/dev/null | jq 'length' || echo 0)
+    PROTECTED_TASKS=$(listProtectedTasks "$PREVIOUS_ARNS" 2>/dev/null) || PROTECTED_TASKS='[]'
+    PROTECTED_COUNT=$(echo "${PROTECTED_TASKS:-[]}" | jq 'length')
 
     echo "$PREVIOUS_COUNT $PROTECTED_COUNT"
 }
